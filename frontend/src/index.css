@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Remove Vite default styles */
+
+body {
+  margin: 0;
+}
