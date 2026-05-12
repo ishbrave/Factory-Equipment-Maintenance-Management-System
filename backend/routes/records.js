@@ -9,37 +9,17 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const { plateNumber, slotNumber, entryTime, exitTime } = req.body;
+    const { plateNumber, slotNumber } = req.body;
 
-    if (!plateNumber || slotNumber === undefined || slotNumber === null || !entryTime) {
-      return res.status(400).json({ message: 'PlateNumber, SlotNumber, and EntryTime are required.' });
+    if (!plateNumber || slotNumber === undefined || slotNumber === null) {
+      return res.status(400).json({ message: 'PlateNumber and SlotNumber are required.' });
     }
 
     const normalizedPlate = String(plateNumber).trim().toUpperCase();
     const parsedSlotNumber = Number(slotNumber);
 
     if (!Number.isInteger(parsedSlotNumber) || parsedSlotNumber < 1 || parsedSlotNumber > 999) {
-      return res.status(400).json({ message: 'SlotNumber must be an integer from 1 to 999 (format P-001 … P-999).' });
-    }
-
-    const parsedEntryTime = new Date(entryTime);
-    if (Number.isNaN(parsedEntryTime.getTime())) {
-      return res.status(400).json({ message: 'EntryTime must be a valid datetime.' });
-    }
-
-    let parsedExitTime = null;
-    let duration = null;
-
-    if (exitTime) {
-      parsedExitTime = new Date(exitTime);
-      if (Number.isNaN(parsedExitTime.getTime())) {
-        return res.status(400).json({ message: 'ExitTime must be a valid datetime.' });
-      }
-
-      duration = calculateDurationHours(parsedEntryTime, parsedExitTime);
-      if (duration === null) {
-        return res.status(400).json({ message: 'ExitTime must be later than EntryTime.' });
-      }
+      return res.status(400).json({ message: 'SlotNumber must be an integer from 1 to 999 (format P-001 to P-999).' });
     }
 
     const car = await Car.findOne({ plateNumber: normalizedPlate });
@@ -59,9 +39,9 @@ router.post('/', async (req, res) => {
     const record = await ParkingRecord.create({
       plateNumber: normalizedPlate,
       slotNumber: parsedSlotNumber,
-      entryTime: parsedEntryTime,
-      exitTime: parsedExitTime,
-      duration,
+      entryTime: new Date(),
+      exitTime: null,
+      duration: null,
     });
 
     slot.slotStatus = 'Occupied';
@@ -141,9 +121,11 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Parking record not found.' });
     }
 
-    const rawExitTime = req.body.exitTime || new Date().toISOString();
-    const parsedExitTime = new Date(rawExitTime);
+    if (!req.body.exitTime) {
+      return res.status(400).json({ message: 'ExitTime is required.' });
+    }
 
+    const parsedExitTime = new Date(req.body.exitTime);
     if (Number.isNaN(parsedExitTime.getTime())) {
       return res.status(400).json({ message: 'ExitTime must be a valid datetime.' });
     }

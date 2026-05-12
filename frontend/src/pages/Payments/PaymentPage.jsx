@@ -11,6 +11,13 @@ const calculateAmount = (duration) => {
   return Math.max(500, numericDuration * 500);
 };
 
+const calculateDurationHoursNow = (entryTime) => {
+  const start = new Date(entryTime);
+  if (Number.isNaN(start.getTime())) return 0;
+  const elapsedMs = Math.max(0, Date.now() - start.getTime());
+  return Number((elapsedMs / (1000 * 60 * 60)).toFixed(2));
+};
+
 export const PaymentPage = () => {
   const { showError, showSuccess } = useToast();
   const [records, setRecords] = useState([]);
@@ -42,21 +49,26 @@ export const PaymentPage = () => {
     loadData();
   }, [loadData]);
 
-  const unpaidRecords = useMemo(() => {
+  const payableRecords = useMemo(() => {
     const paidRecordIds = new Set(payments.map((payment) => Number(payment.recordId)));
 
-    return records.filter((record) => record.exitTime && !paidRecordIds.has(Number(record.recordId)));
+    return records.filter((record) => !record.exitTime && !paidRecordIds.has(Number(record.recordId)));
   }, [records, payments]);
 
   const selectedRecord = useMemo(
-    () => unpaidRecords.find((record) => Number(record.recordId) === Number(recordId)) || null,
-    [unpaidRecords, recordId]
+    () => payableRecords.find((record) => Number(record.recordId) === Number(recordId)) || null,
+    [payableRecords, recordId]
   );
+
+  const currentDuration = useMemo(() => {
+    if (!selectedRecord) return 0;
+    return calculateDurationHoursNow(selectedRecord.entryTime);
+  }, [selectedRecord]);
 
   const amountPaid = useMemo(() => {
     if (!selectedRecord) return 0;
-    return calculateAmount(selectedRecord.duration);
-  }, [selectedRecord]);
+    return calculateAmount(currentDuration);
+  }, [selectedRecord, currentDuration]);
 
   const resetForm = () => {
     setRecordId('');
@@ -110,7 +122,7 @@ export const PaymentPage = () => {
               </div>
               <div>
                 <h2 className="text-2xl font-semibold text-[#111827]">Record payment</h2>
-                <p className="text-sm text-[#6B7280]">Process payments for completed parking sessions. Amount is calculated based on duration.</p>
+                <p className="text-sm text-[#6B7280]">Select an active parked car. On payment, exit time is taken as current server time and duration/amount are calculated.</p>
               </div>
             </div>
           </div>
@@ -119,7 +131,7 @@ export const PaymentPage = () => {
             <div className="grid gap-6 sm:grid-cols-3">
               <div>
                 <label className="mb-2 block text-sm font-medium text-[#374151]">
-                  Completed record <span className="text-[#EF4444]">*</span>
+                  Active record <span className="text-[#EF4444]">*</span>
                 </label>
                 <select
                   value={recordId}
@@ -127,13 +139,23 @@ export const PaymentPage = () => {
                   className="w-full rounded-[16px] border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#111827] outline-none transition focus:border-[#1E40AF] focus:ring-2 focus:ring-[#DBEAFE]"
                   disabled={saving}
                 >
-                  <option value="">Select a completed record</option>
-                  {unpaidRecords.map((record) => (
+                  <option value="">Select an active record</option>
+                  {payableRecords.map((record) => (
                     <option key={record.recordId} value={record.recordId}>
-                      Record #{record.recordId} — {record.plateNumber} ({record.duration}h)
+                      Record #{record.recordId} — {record.plateNumber} (Entry: {formatDateTime(record.entryTime)})
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[#374151]">Hours parked (now)</label>
+                <input
+                  type="text"
+                  value={selectedRecord ? `${currentDuration} hrs` : '0 hrs'}
+                  readOnly
+                  className="w-full rounded-[16px] border border-[#E2E8F0] bg-[#F9FAFB] px-4 py-3 text-sm text-[#111827]"
+                />
               </div>
 
               <div>
@@ -173,7 +195,7 @@ export const PaymentPage = () => {
           {loading ? (
             <Loader />
           ) : payments.length === 0 ? (
-            <EmptyState title="No payments yet" message="Create payments for completed parking records." />
+            <EmptyState title="No payments yet" message="Create payments for active parking records when customers exit." />
           ) : (
             <Table columns={columns} data={payments} loading={loading} emptyMessage="No payments found." />
           )}

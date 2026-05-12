@@ -1,6 +1,7 @@
 const express = require('express');
 const Payment = require('../models/Payment');
 const ParkingRecord = require('../models/ParkingRecord');
+const ParkingSlot = require('../models/ParkingSlot');
 const { calculateDurationHours, calculateAmountPaid } = require('../utils/billing');
 
 const router = express.Router();
@@ -33,20 +34,18 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ message: 'Parking record not found.' });
     }
 
+    // Payment moment means customer is exiting now.
     if (!record.exitTime) {
-      return res.status(400).json({ message: 'Record exit must be completed before payment.' });
+      record.exitTime = new Date();
     }
 
-    let duration = record.duration;
-    if (!duration) {
-      duration = calculateDurationHours(record.entryTime, record.exitTime);
-      if (duration === null) {
-        return res.status(400).json({ message: 'Invalid record times for billing.' });
-      }
-
-      record.duration = duration;
-      await record.save();
+    const duration = calculateDurationHours(record.entryTime, record.exitTime);
+    if (duration === null) {
+      return res.status(400).json({ message: 'Invalid record times for billing.' });
     }
+
+    record.duration = duration;
+    await record.save();
 
     const amountPaid = calculateAmountPaid(duration);
 
@@ -55,6 +54,8 @@ router.post('/', async (req, res) => {
       paymentDate: parsedPaymentDate,
       amountPaid,
     });
+
+    await ParkingSlot.updateOne({ slotNumber: record.slotNumber }, { $set: { slotStatus: 'Available' } });
 
     return res.status(201).json(payment);
   } catch (error) {
