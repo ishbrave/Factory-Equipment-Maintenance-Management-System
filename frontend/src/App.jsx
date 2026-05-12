@@ -1,19 +1,15 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { useAuth } from './hooks/useAuth';
 import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
-import { EquipmentList } from './pages/Equipment/EquipmentList';
-import { EquipmentForm } from './pages/Equipment/EquipmentForm';
-import { EquipmentDetail } from './pages/Equipment/EquipmentDetail';
-import { MaintenanceList } from './pages/Maintenance/MaintenanceList';
-import { MaintenanceForm } from './pages/Maintenance/MaintenanceForm';
-import { TechnicianList } from './pages/Technicians/TechnicianList';
-import { TechnicianForm } from './pages/Technicians/TechnicianForm';
+import { CarPage } from './pages/Cars/CarPage';
+import { ParkingSlotPage } from './pages/ParkingSlots/ParkingSlotPage';
+import { ParkingRecordPage } from './pages/ParkingRecords/ParkingRecordPage';
+import { PaymentPage } from './pages/Payments/PaymentPage';
 import { Reports } from './pages/Reports';
-import { Toaster } from 'react-hot-toast';
+import { Dashboard } from './pages/Dashboard';
 
-// Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
@@ -28,7 +24,6 @@ const ProtectedRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
-// App Routes Component
 const AppRoutes = () => {
   return (
     <Routes>
@@ -43,82 +38,34 @@ const AppRoutes = () => {
         }
       />
       <Route
-        path="/equipment"
+        path="/cars"
         element={
           <ProtectedRoute>
-            <EquipmentList />
+            <CarPage />
           </ProtectedRoute>
         }
       />
       <Route
-        path="/equipment/new"
+        path="/slots"
         element={
           <ProtectedRoute>
-            <EquipmentForm />
+            <ParkingSlotPage />
           </ProtectedRoute>
         }
       />
       <Route
-        path="/equipment/:id"
+        path="/records"
         element={
           <ProtectedRoute>
-            <EquipmentDetail />
+            <ParkingRecordPage />
           </ProtectedRoute>
         }
       />
       <Route
-        path="/equipment/:id/edit"
+        path="/payments"
         element={
           <ProtectedRoute>
-            <EquipmentForm />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/maintenance"
-        element={
-          <ProtectedRoute>
-            <MaintenanceList />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/maintenance/new"
-        element={
-          <ProtectedRoute>
-            <MaintenanceForm />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/maintenance/:id/edit"
-        element={
-          <ProtectedRoute>
-            <MaintenanceForm />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/technicians"
-        element={
-          <ProtectedRoute>
-            <TechnicianList />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/technicians/new"
-        element={
-          <ProtectedRoute>
-            <TechnicianForm />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/technicians/:id/edit"
-        element={
-          <ProtectedRoute>
-            <TechnicianForm />
+            <PaymentPage />
           </ProtectedRoute>
         }
       />
@@ -135,7 +82,6 @@ const AppRoutes = () => {
   );
 };
 
-// Main App Component
 const App = () => {
   return (
     <>

@@ -1,48 +1,94 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
 require('dotenv').config();
 
-const User = require('./models/User');
-const apiRoutes = require('./routes/api');
+const express = require('express');
+const cors = require('cors');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+const { connectDB } = require('./db');
+const { requireAuth } = require('./middleware/auth');
+const { seedDefaultUser } = require('./utils/seedDefaultUser');
 
-const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/FEMMS';
-
-const seedLoginUser = async () => {
-    const username = process.env.SEED_USERNAME || 'admin';
-    const password = process.env.SEED_PASSWORD || 'admin123';
-
-    const existingUser = await User.findOne({ username });
-    if (existingUser) {
-        console.log(`Seed user "${username}" already exists`);
-        return;
-    }
-
-    await User.create({ username, password });
-    console.log(`Seed user "${username}" created`);
-};
+const authRoutes = require('./routes/auth');
+const slotRoutes = require('./routes/slots');
+const carRoutes = require('./routes/cars');
+const recordRoutes = require('./routes/records');
+const paymentRoutes = require('./routes/payments');
 
 const app = express();
+const PORT = Number(process.env.PORT || 5000);
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/PSSMS';
 
-// Middlewares
-app.use(cors());
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5174',
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
-// API routes
-app.use('/api', apiRoutes);
+app.use(
+  session({
+    name: 'pssms.sid',
+    secret: process.env.SESSION_SECRET || 'change_this_session_secret',
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: MONGODB_URI,
+      dbName: process.env.DB_NAME || 'PSSMS',
+      collectionName: 'sessions',
+    }),
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+      maxAge: 1000 * 60 * 60 * 8,
+    },
+  })
+);
 
-// MongoDB connection
-mongoose.connect(MONGODB_URI)
-    .then(async () => {
-        console.log('Connected to MongoDB');
-        await seedLoginUser();
+app.get('/api/health', async (req, res) => {
+  return res.json({ status: 'ok', service: 'PSSMS API' });
+});
 
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-        });
-    })
-    .catch(err => {
-        console.error('Could not connect to MongoDB', err);
-        process.exit(1);
+app.use('/api/auth', authRoutes);
+app.use('/api/slots', requireAuth, slotRoutes);
+app.use('/api/cars', requireAuth, carRoutes);
+app.use('/api/records', requireAuth, recordRoutes);
+app.use('/api/payments', requireAuth, paymentRoutes);
+
+app.use((req, res) => {
+  return res.status(404).json({ message: 'Route not found.' });
+});
+
+app.use((error, req, res, next) => {
+  return res.status(500).json({ message: 'Internal server error.', error: error.message });
+});
+
+const startServer = async () => {
+  try {
+    await connectDB();
+    await seedDefaultUser();
+
+    app.listen(PORT, () => {
+      console.log(`PSSMS backend is running on port ${PORT}`);
     });
+  } catch (error) {
+    console.error('Failed to start backend:', error);
+    process.exit(1);
+  }
+};
+
+startServer();

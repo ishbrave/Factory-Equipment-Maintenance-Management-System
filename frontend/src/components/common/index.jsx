@@ -8,7 +8,8 @@ export const Button = ({
   disabled = false,
   ...props
 }) => {
-  const base = 'rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2';
+  const base =
+    'rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E40AF] focus-visible:ring-offset-2';
   const variants = {
     primary: 'bg-[#1E40AF] text-white hover:bg-[#1D4ED8] disabled:bg-gray-400',
     secondary: 'bg-white text-[#111827] border border-[#E2E8F0] hover:bg-[#F1F5F9]',
@@ -36,7 +37,7 @@ export const Button = ({
 
 export const Input = ({
   label,
-  icon: Icon,
+  icon,
   error,
   className = '',
   required = false,
@@ -51,13 +52,13 @@ export const Input = ({
         </label>
       )}
       <div className="relative">
-        {Icon && (
+        {icon && (
           <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#9CA3AF]">
-            <Icon size={18} />
+            {React.createElement(icon, { size: 18 })}
           </div>
         )}
         <input
-          className={`w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 pl-${Icon ? '11' : '4'} text-sm text-[#111827] transition-all duration-200 focus:border-[#1E40AF] focus:ring-2 focus:ring-[#DBEAFE] ${Icon ? 'pl-11' : ''}`}
+          className={`w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#111827] transition-all duration-200 focus:border-[#1E40AF] focus:ring-2 focus:ring-[#DBEAFE] ${icon ? 'pl-11' : ''}`}
           {...props}
         />
       </div>
@@ -73,7 +74,7 @@ export const Modal = ({ title, isOpen, onClose, children }) => {
       <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-[#111827]">{title}</h3>
-          <button className="text-[#6B7280] hover:text-[#111827]" onClick={onClose} aria-label="Close modal">✕</button>
+          <button type="button" className="text-[#6B7280] hover:text-[#111827]" onClick={onClose} aria-label="Close modal">x</button>
         </div>
         {children}
       </div>
@@ -89,6 +90,7 @@ export const Badge = ({ children, variant = 'primary', className = '' }) => {
     danger: 'bg-[#FEE2E2] text-[#991B1B]',
     gray: 'bg-[#F3F4F6] text-[#4B5563]',
   };
+
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${styles[variant]} ${className}`}>
       {children}
@@ -96,7 +98,7 @@ export const Badge = ({ children, variant = 'primary', className = '' }) => {
   );
 };
 
-export const StatCard = ({ icon: Icon, label, value, trend, color = '#1E40AF' }) => (
+export const StatCard = ({ icon, label, value, trend, color = '#1E40AF' }) => (
   <div className="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
     <div className="flex items-start justify-between gap-4">
       <div>
@@ -105,7 +107,7 @@ export const StatCard = ({ icon: Icon, label, value, trend, color = '#1E40AF' })
         {trend && <p className="mt-2 text-sm text-[#6B7280]">{trend}</p>}
       </div>
       <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: `${color}1A` }}>
-        <Icon size={24} color={color} />
+        {React.createElement(icon, { size: 24, color })}
       </div>
     </div>
   </div>
@@ -119,15 +121,17 @@ export const Loader = ({ fullPage = false }) => {
       <span className="h-3 w-3 rounded-full bg-[#1E40AF] animate-bounce animation-delay-400"></span>
     </div>
   );
+
   if (fullPage) {
     return <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80">{loader}</div>;
   }
+
   return loader;
 };
 
-export const EmptyState = ({ icon: Icon, title, message }) => (
+export const EmptyState = ({ icon, title, message }) => (
   <div className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-[#E2E8F0] bg-white p-10 text-center">
-    {Icon && <Icon size={42} className="text-[#9CA3AF]" />}
+    {icon ? React.createElement(icon, { size: 42, className: 'text-[#9CA3AF]' }) : null}
     <h3 className="text-lg font-semibold text-[#111827]">{title}</h3>
     <p className="max-w-sm text-sm text-[#6B7280]">{message}</p>
   </div>
@@ -135,6 +139,7 @@ export const EmptyState = ({ icon: Icon, title, message }) => (
 
 export const ConfirmDialog = ({ isOpen, title, message, onConfirm, onCancel, isDangerous = false }) => {
   if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
@@ -164,36 +169,74 @@ export const Table = ({ columns, data, loading, emptyMessage = 'No records found
     return <EmptyState title="No records" message={emptyMessage} />;
   }
 
+  const actionColumns = columns.filter((col) => col.actions);
+  const dataColumns = columns.filter((col) => !col.actions);
+  const hasActions = actionColumns.length > 0;
+
   return (
-    <div className="overflow-x-auto rounded-3xl border border-[#E2E8F0] bg-white">
-      <table className="min-w-full text-left text-sm text-[#374151]">
-        <thead className="bg-[#F8FAFC]">
-          <tr>
-            {columns.map((col) => (
-              <th key={col.key} className="whitespace-nowrap px-5 py-4 font-semibold">
-                {col.label}
-              </th>
-            ))}
-            {columns.some((col) => col.actions) && <th className="px-5 py-4 font-semibold">Actions</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, rowIndex) => (
-            <tr key={rowIndex} className="border-t border-[#E2E8F0] hover:bg-[#F8FAFC]">
-              {columns.map((col) => (
-                <td key={col.key} className="whitespace-nowrap px-5 py-4 align-top text-sm text-[#4B5563]">
-                  {col.render ? col.render(row) : row[col.key] ?? '—'}
-                </td>
+    <>
+      <div className="overflow-x-auto rounded-3xl border border-[#E2E8F0] bg-white hidden md:block">
+        <table className="min-w-full text-left text-sm text-[#374151]">
+          <thead className="bg-[#F8FAFC]">
+            <tr>
+              {dataColumns.map((col) => (
+                <th key={col.key} className="whitespace-nowrap px-5 py-4 font-semibold">
+                  {col.label}
+                </th>
               ))}
-              {columns.some((col) => col.actions) && (
-                <td className="px-5 py-4 text-sm text-[#4B5563]">
-                  {columns.filter((col) => col.actions).map((col) => col.actions(row))}
-                </td>
-              )}
+              {hasActions && <th className="px-5 py-4 font-semibold">Actions</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {data.map((row, rowIndex) => (
+              <tr
+                key={row.id || row.recordId || row.paymentId || row.slotNumber || row.plateNumber || rowIndex}
+                className="border-t border-[#E2E8F0] hover:bg-[#F8FAFC]"
+              >
+                {dataColumns.map((col) => (
+                  <td key={col.key} className="whitespace-nowrap px-5 py-4 align-top text-sm text-[#4B5563]">
+                    {col.render ? col.render(row) : row[col.key] ?? '-'}
+                  </td>
+                ))}
+                {hasActions && (
+                  <td className="px-5 py-4 text-sm text-[#4B5563]">
+                    {actionColumns.map((col) => (
+                      <span key={col.key}>{col.actions(row)}</span>
+                    ))}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {data.map((row, rowIndex) => (
+          <div
+            key={row.id || row.recordId || row.paymentId || row.slotNumber || row.plateNumber || rowIndex}
+            className="rounded-2xl border border-[#E2E8F0] bg-white p-4"
+          >
+            <div className="space-y-3">
+              {dataColumns.map((col) => (
+                <div key={col.key} className="flex items-start justify-between gap-4">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">{col.label}</span>
+                  <span className="text-sm text-right text-[#374151]">
+                    {col.render ? col.render(row) : row[col.key] ?? '-'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {hasActions && (
+              <div className="mt-4 border-t border-[#E2E8F0] pt-3">
+                {actionColumns.map((col) => (
+                  <span key={col.key}>{col.actions(row)}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
   );
 };

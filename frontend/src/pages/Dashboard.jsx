@@ -1,106 +1,159 @@
-import { useMemo } from 'react';
-import { Cpu, CheckCircle2, Wrench, Users, ArrowRight } from 'lucide-react';
-import { useFetch } from '../hooks/useFetch';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Car, CreditCard, ParkingSquare, ReceiptText, TrendingUp } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import api from '../api/axios';
 import { Layout } from '../components/layout/Layout';
-import { EquipmentPieChart } from '../components/charts/EquipmentPieChart';
-import { Badge, EmptyState, Loader, StatCard, Table } from '../components/common';
-import { formatCurrency, formatDate, getInitials } from '../utils/formatters';
+import { Loader, StatCard } from '../components/common';
+import { useToast } from '../hooks/useToast';
+import { formatCurrency } from '../utils/formatters';
+
+const PIE_COLORS = ['#1E40AF', '#DBEAFE', '#0EA5E9', '#F59E0B'];
 
 export const Dashboard = () => {
-  const { data: equipment = [], loading: equipmentLoading } = useFetch('/equipment', { initialData: [] });
-  const { data: technicians = [], loading: techniciansLoading } = useFetch('/technicians', { initialData: [] });
-  const { data: maintenance = [], loading: maintenanceLoading } = useFetch('/maintenance', { initialData: [] });
+  const { showError } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [cars, setCars] = useState([]);
+  const [slots, setSlots] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [payments, setPayments] = useState([]);
 
-  const equipmentArray = Array.isArray(equipment) ? equipment : [];
-  const techniciansArray = Array.isArray(technicians) ? technicians : [];
-  const maintenanceArray = Array.isArray(maintenance) ? maintenance : [];
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [c, s, r, p] = await Promise.all([
+        api.get('/cars'),
+        api.get('/slots'),
+        api.get('/records'),
+        api.get('/payments'),
+      ]);
+      setCars(Array.isArray(c.data) ? c.data : []);
+      setSlots(Array.isArray(s.data) ? s.data : []);
+      setRecords(Array.isArray(r.data) ? r.data : []);
+      setPayments(Array.isArray(p.data) ? p.data : []);
+    } catch (e) {
+      showError(e.response?.data?.message || 'Failed to load dashboard.');
+    } finally {
+      setLoading(false);
+    }
+  }, [showError]);
 
-  const stats = useMemo(() => {
-    const totalEquipment = equipmentArray.length;
-    const activeEquipment = equipmentArray.filter((item) => item.status === 'Operational').length;
-    const totalMaintenance = maintenanceArray.length;
-    const totalTechnicians = techniciansArray.length;
-    return { totalEquipment, activeEquipment, totalMaintenance, totalTechnicians };
-  }, [equipmentArray, maintenanceArray, techniciansArray]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const recentRecords = maintenanceArray.slice(0, 5);
+  const slotPieData = useMemo(() => {
+    const available = slots.filter((x) => x.slotStatus === 'Available').length;
+    const occupied = slots.filter((x) => x.slotStatus === 'Occupied').length;
+    if (available === 0 && occupied === 0) {
+      return [{ name: 'No slots', value: 1 }];
+    }
+    return [
+      { name: 'Available', value: available },
+      { name: 'Occupied', value: occupied },
+    ];
+  }, [slots]);
 
-  const topTechnicians = useMemo(() => {
-    const counts = maintenanceArray.reduce((acc, item) => {
-      const name = item.Technician?.TechnicianName || 'Unknown';
-      acc[name] = (acc[name] || 0) + 1;
-      return acc;
-    }, {});
-    return Object.entries(counts)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-  }, [maintenanceArray]);
+  const recordPieData = useMemo(() => {
+    const active = records.filter((x) => !x.exitTime).length;
+    const done = records.filter((x) => Boolean(x.exitTime)).length;
+    if (active === 0 && done === 0) {
+      return [{ name: 'No records', value: 1 }];
+    }
+    return [
+      { name: 'Active sessions', value: active },
+      { name: 'Completed', value: done },
+    ];
+  }, [records]);
 
-  const maintenanceColumns = [
-    { key: 'ServiceCode', label: 'Service Code' },
-    { key: 'EquipmentName', label: 'Equipment' , render: (row) => row.Equipment?.EquipmentName || '—'},
-    { key: 'TechnicianName', label: 'Technician', render: (row) => row.Technician?.TechnicianName || '—' },
-    { key: 'ServiceDate', label: 'Date', render: (row) => formatDate(row.ServiceDate) },
-    { key: 'cost', label: 'Cost', render: (row) => formatCurrency(row.cost) },
-    { key: 'status', label: 'Status', render: (row) => <Badge variant={row.status === 'Pending' ? 'warning' : 'success'}>{row.status}</Badge> },
+  const revenue = useMemo(() => payments.reduce((sum, x) => sum + (Number(x.amountPaid) || 0), 0), [payments]);
+
+  const quickLinks = [
+    { to: '/cars', label: 'Manage cars', icon: Car },
+    { to: '/slots', label: 'Parking slots', icon: ParkingSquare },
+    { to: '/records', label: 'Parking records', icon: ReceiptText },
+    { to: '/payments', label: 'Payments', icon: CreditCard },
   ];
 
   return (
     <Layout title="Dashboard">
-      <div className="space-y-6">
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard icon={Cpu} label="Total Equipment" value={stats.totalEquipment} trend="+4 this month" color="#1E40AF" />
-          <StatCard icon={CheckCircle2} label="Active Equipment" value={stats.activeEquipment} trend="+2 this month" color="#22C55E" />
-          <StatCard icon={Wrench} label="Total Maintenance" value={stats.totalMaintenance} trend="+6 this month" color="#F59E0B" />
-          <StatCard icon={Users} label="Total Technicians" value={stats.totalTechnicians} trend="+1 this month" color="#3B82F6" />
+      {loading ? (
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <Loader />
         </div>
+      ) : (
+        <div className="space-y-8">
+          <div className="rounded-[28px] border border-[#E2E8F0] bg-gradient-to-br from-[#1E40AF] to-[#1E3A8A] p-8 text-white shadow-lg">
+            <p className="text-sm font-medium uppercase tracking-widest text-white/80">System overview</p>
+            <h2 className="mt-2 text-3xl font-bold">Welcome to SmartPark PSSMS</h2>
+            <p className="mt-3 max-w-2xl text-sm text-white/85">
+              Track occupancy, active sessions, and revenue at a glance. Use the sidebar to register cars, manage slots,
+              record entries and exits, process payments, and run reports.
+            </p>
+          </div>
 
-        <EquipmentPieChart equipment={equipmentArray} />
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard icon={Car} label="Registered cars" value={String(cars.length)} color="#1E40AF" />
+            <StatCard icon={ParkingSquare} label="Parking slots" value={String(slots.length)} color="#0EA5E9" />
+            <StatCard icon={ReceiptText} label="Total records" value={String(records.length)} color="#8B5CF6" />
+            <StatCard icon={TrendingUp} label="Total revenue" value={formatCurrency(revenue)} color="#059669" />
+          </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-          <div className="rounded-[24px] border border-[#E2E8F0] bg-white p-6 shadow-sm">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#6B7280]">Recent Maintenance Records</p>
-                <p className="text-sm text-[#6B7280]">Latest updates across the plant</p>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-[#111827]">Slot availability</h3>
+              <p className="mt-1 text-sm text-[#6B7280]">Share of available vs occupied slots</p>
+              <div className="mt-4 h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={slotPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={50} label>
+                      {slotPieData.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              <span className="text-sm font-semibold text-[#1E40AF]">View All →</span>
             </div>
-            <Table columns={maintenanceColumns} data={recentRecords} loading={maintenanceLoading} />
+
+            <div className="rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-[#111827]">Parking sessions</h3>
+              <p className="mt-1 text-sm text-[#6B7280]">Active vs completed parking records</p>
+              <div className="mt-4 h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={recordPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={50} label>
+                      {recordPieData.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[(i + 2) % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
 
-          <div className="rounded-[24px] border border-[#E2E8F0] bg-white p-6 shadow-sm">
-            <div className="mb-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#6B7280]">Top Technicians</p>
-              <p className="text-sm text-[#6B7280]">Workload ranking this month</p>
-            </div>
-            <div className="space-y-4">
-              {topTechnicians.length === 0 ? (
-                <EmptyState title="No technicians" message="No workload data is available." />
-              ) : (
-                topTechnicians.map((tech, index) => (
-                  <div key={tech.name} className="space-y-3 rounded-3xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-3xl bg-[#DBEAFE] text-[#1E40AF] font-semibold">{getInitials(tech.name)}</div>
-                        <div>
-                          <p className="font-semibold text-[#111827]">{tech.name}</p>
-                          <p className="text-sm text-[#6B7280]">{tech.count} jobs</p>
-                        </div>
-                      </div>
-                      <Badge variant="primary">{tech.count}</Badge>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-white">
-                      <div className="h-full rounded-full bg-[#3B82F6]" style={{ width: `${Math.min((tech.count / topTechnicians[0].count) * 100, 100)}%` }} />
-                    </div>
-                  </div>
-                ))
-              )}
+          <div className="rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-[#111827]">Quick actions</h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {quickLinks.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="flex items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 text-sm font-semibold text-[#1E40AF] transition hover:border-[#1E40AF] hover:bg-white"
+                >
+                  <item.icon size={20} />
+                  {item.label}
+                </Link>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      )}
     </Layout>
   );
 };

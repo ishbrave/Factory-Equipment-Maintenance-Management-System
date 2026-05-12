@@ -1,22 +1,57 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const { getNextSequence } = require('../utils/counter');
 
-const UserSchema = new mongoose.Schema({
-    username:{
-        type:String,
-        required:true,
-        unique:true,
-        trim:true
+const userSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: Number,
+      unique: true,
+      index: true,
     },
-    password:{
-        type:String,
-        required:true,
-    }
-},  { timestamps: true });
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      maxlength: 50,
+    },
+    password: {
+      type: String,
+      required: true,
+      maxlength: 255,
+    },
+    resetPasswordToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
 
-//Method to compare password
-UserSchema.methods.comparePassword = function(candidatePassword, callback) {
-    bcrypt.compare(candidatePassword, this.password, callback);
-};
+userSchema.pre('validate', async function assignUserId(next) {
+  if (!this.userId) {
+    this.userId = await getNextSequence('users');
+  }
+  next();
+});
 
-module.exports = mongoose.model('User', UserSchema);
+userSchema.pre('save', async function hashPassword(next) {
+  if (!this.isModified('password')) {
+    next();
+    return;
+  }
+
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+module.exports = mongoose.model('User', userSchema);

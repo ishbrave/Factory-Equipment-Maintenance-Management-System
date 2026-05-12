@@ -1,49 +1,50 @@
-import React, { createContext, useEffect, useMemo, useState } from 'react';
-
-export const AuthContext = createContext(null);
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import api from '../api/axios';
+import { AuthContext } from './AuthContextValue';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+  const refreshSession = useCallback(async () => {
+    try {
+      const response = await api.get('/auth/me');
+      setUser(response.data.user || null);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
-  const login = (authToken, userData) => {
-    localStorage.setItem('token', authToken);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setToken(authToken);
+  useEffect(() => {
+    refreshSession();
+  }, [refreshSession]);
+
+  const login = (userData) => {
     setUser(userData);
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-    window.location.href = '/login';
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Ignore logout transport errors and clear local auth state.
+    } finally {
+      setUser(null);
+    }
   };
-
-  const isAuthenticated = !!token && !!user;
 
   const value = useMemo(
     () => ({
       user,
-      token,
       loading,
+      isAuthenticated: Boolean(user),
       login,
       logout,
-      isAuthenticated,
+      refreshSession,
     }),
-    [user, token, loading, isAuthenticated]
+    [user, loading, refreshSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
